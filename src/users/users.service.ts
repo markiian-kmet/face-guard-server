@@ -8,7 +8,7 @@ import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
-
+import { JwtService } from '@nestjs/jwt';
 import * as bcryptjs from 'bcryptjs';
 
 @Injectable()
@@ -16,6 +16,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly jwtService: JwtService,
   ) {}
 
   async login(loginUserDto: LoginUserDto) {
@@ -35,9 +36,16 @@ export class UsersService {
       user &&
       (await bcryptjs.compare(loginUserDto.password, user.password))
     ) {
+      const payload = { email: user.email, sub: user.id };
+      const token = this.jwtService.sign(payload);
+
+      const userWithoutPassword = { ...user };
+      delete userWithoutPassword.password;
+
       return {
-        message: `user with id ${user.id} successfully logged in`,
-        user,
+        message: `User with id ${user.id} successfully logged in`,
+        user: userWithoutPassword,
+        token,
       };
     }
 
@@ -48,6 +56,8 @@ export class UsersService {
     const existingUser = await this.userRepository.findOne({
       where: [{ email: registerUserDto.email }],
     });
+
+    console.log('existingUser', existingUser);
 
     if (existingUser) {
       throw new ConflictException('Користувач з такою потштою вже існує');
